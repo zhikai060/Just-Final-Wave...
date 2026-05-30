@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Tower Defense</title>
+<title>Just Final Wave Tower Defense</title>
 <style>
 * {
   box-sizing: border-box;
@@ -241,6 +241,22 @@ button:disabled {
   filter: brightness(1.15);
 }
 
+.nuke-action-btn {
+  position: absolute;
+  top: 70px;
+  right: 18px;
+  width: 86px;
+  height: 44px;
+  border-radius: 999px;
+  z-index: 3;
+  background: linear-gradient(135deg, #dc2626, #7f1d1d);
+  box-shadow: 0 12px 24px rgba(220, 38, 38, 0.28);
+}
+
+.nuke-action-btn:disabled {
+  opacity: 0.5;
+}
+
 .toast {
   position: absolute;
   left: 50%;
@@ -356,6 +372,7 @@ button:disabled {
   <section class="board-panel">
     <canvas id="game" width="840" height="720"></canvas>
     <button id="speedBtn" class="fast-forward-btn">⏩ 2x</button>
+    <button id="nukeBtn" class="nuke-action-btn" disabled>☢ NUKE</button>
     <div id="toast" class="toast"></div>
     <div id="overlay" class="overlay">
       <div class="modal">
@@ -426,6 +443,7 @@ const ids = [
   'sellBtn',
   'overlayRestartBtn',
   'speedBtn',
+  'nukeBtn',
   'towerList'
 ];
 
@@ -488,7 +506,7 @@ const types = {
     color: '#ef4444',
     bulletSpeed: 0,
     once: true,
-    desc: 'One-time use. Clears all non-boss enemies on the map.'
+    desc: 'One-time use. During a wave, press the NUKE button to clear all non-boss enemies on the map.'
   }
 };
 
@@ -1062,6 +1080,11 @@ function clickCanvas(event) {
     return;
   }
 
+  if (types[selectedType].once) {
+    toast('Press the NUKE button during a wave to launch.');
+    return;
+  }
+
   if (active()) {
     toast('You cannot place towers during a wave.');
     return;
@@ -1072,6 +1095,11 @@ function clickCanvas(event) {
 
 function place(x, y) {
   const tower = types[selectedType];
+
+  if (tower.once) {
+    toast('Press the NUKE button during a wave to launch.');
+    return;
+  }
 
   if (game.money < tower.cost) {
     toast('Not enough money to use this.');
@@ -1084,14 +1112,38 @@ function place(x, y) {
   }
 
   game.money -= tower.cost;
+  game.towers.push(new Tower(x, y, selectedType));
+  updateUI();
+}
 
-  if (tower.once) {
-    useNuke();
-  } else {
-    game.towers.push(new Tower(x, y, selectedType));
+function hasNukeTargets() {
+  return game.enemies.some(enemy => !enemy.boss);
+}
+
+function launchNuke() {
+  const tower = types[selectedType];
+
+  if (!tower.once) return false;
+
+  if (!active()) {
+    toast('Nuke can only be launched during a wave.');
+    return true;
   }
 
+  if (!hasNukeTargets()) {
+    toast('No non-boss enemies to clear.');
+    return true;
+  }
+
+  if (game.money < tower.cost) {
+    toast('Not enough money to launch the nuke.');
+    return true;
+  }
+
+  game.money -= tower.cost;
+  useNuke();
   updateUI();
+  return true;
 }
 
 function useNuke() {
@@ -1137,7 +1189,7 @@ function updateSelectedTypeInfo() {
 
   ui.info.innerHTML = `Selected: ${tower.name}<br>` +
     `Cost: $${tower.cost}<br>` +
-    `${tower.once ? 'One-time use. Cannot be sold. Clears all non-boss enemies.' : `Sell Value: $${tower.sellValue}<br>Damage: ${tower.damage} | Range: ${tower.range}`}<br>` +
+    `${tower.once ? 'One-time use. Cannot be sold. During a wave, press the NUKE button to clear all non-boss enemies.' : `Sell Value: $${tower.sellValue}<br>Damage: ${tower.damage} | Range: ${tower.range}`}<br>` +
     rapidHint +
     `${active() ? 'Building is locked during waves.' : 'Click on grass to use/place it. You cannot build on the path.'}`;
 
@@ -1153,6 +1205,7 @@ function updateUI() {
 
   ui.nextBtn.disabled = active() || game.over;
   ui.nextBtn.textContent = active() ? 'In Battle' : `Start Wave ${game.wave}`;
+  ui.nukeBtn.disabled = selectedType !== 'nuke' || game.over;
 
   updateInfo();
 }
@@ -1249,6 +1302,8 @@ function bindEvents() {
     speedBoost(true);
   };
 
+  ui.nukeBtn.onclick = launchNuke;
+
   window.addEventListener('pointerup', () => speedBoost(false));
   window.addEventListener('pointercancel', () => speedBoost(false));
   ui.speedBtn.onmouseleave = () => speedBoost(false);
@@ -1273,4 +1328,3 @@ requestAnimationFrame(loop);
 </script>
 </body>
 </html>
-
